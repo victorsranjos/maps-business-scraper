@@ -1,0 +1,18 @@
+{
+  "name": "maps-business-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspaces --if-present",
+    "build": "npm run build --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present"
+  },
+  "devDependencies": {
+    "convex": "^1.32.0",
+    "typescript": "^5.4.2"
+  }
+}

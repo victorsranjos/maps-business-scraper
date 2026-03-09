@@ -1,0 +1,10 @@
+src/components/LeadList.test.tsx(12,26): error TS2322: Type '{ _id: string; name: string; niche: string; email: string; phone: string; website: string; instagram: string; }[]' is not assignable to type 'Lead[]'.
+  Property 'city' is missing in type '{ _id: string; name: string; niche: string; email: string; phone: string; website: string; instagram: string; }' but required in type 'Lead'.
+src/components/LeadList.test.tsx(14,48): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Assertion<HTMLElement>'.
+src/components/LeadList.test.tsx(15,46): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Assertion<HTMLElement>'.
+src/components/LeadList.test.tsx(16,59): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Assertion<HTMLElement>'.
+src/components/LeadList.test.tsx(21,49): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Assertion<HTMLElement>'.
+src/components/LeadList.tsx(1,1): error TS6133: 'React' is declared but its value is never read.
+src/components/SearchForm.test.tsx(9,56): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Assertion<HTMLElement>'.
+src/components/SearchForm.test.tsx(10,55): error TS2339: Property 'toBeInTheDocument' does not exist on type 'Assertion<HTMLElement>'.
+src/main.tsx(7,50): error TS2339: Property 'env' does not exist on type 'ImportMeta'.

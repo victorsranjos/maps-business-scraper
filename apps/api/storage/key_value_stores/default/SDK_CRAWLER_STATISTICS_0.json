@@ -1,0 +1,52 @@
+{
+  "requestsFinished": 0,
+  "requestsFailed": 1,
+  "requestsRetries": 1,
+  "requestsFailedPerMinute": 0,
+  "requestsFinishedPerMinute": 0,
+  "requestMinDurationMillis": null,
+  "requestMaxDurationMillis": 0,
+  "requestTotalFailedDurationMillis": 63010,
+  "requestTotalFinishedDurationMillis": 0,
+  "crawlerStartedAt": "2026-03-06T00:15:07.105Z",
+  "crawlerFinishedAt": "2026-03-06T00:19:21.445Z",
+  "statsPersistedAt": "2026-03-06T00:19:21.445Z",
+  "crawlerRuntimeMillis": 254615,
+  "crawlerLastStartTimestamp": 1772756106830,
+  "requestRetryHistogram": [
+    null,
+    null,
+    null,
+    1
+  ],
+  "statsId": 0,
+  "requestAvgFailedDurationMillis": 63010,
+  "requestAvgFinishedDurationMillis": null,
+  "requestTotalDurationMillis": 63010,
+  "requestsTotal": 1,
+  "requestsWithStatusCode": {
+    "200": 4
+  },
+  "errors": {
+    "C:\\Users\\Victor Samir\\.gemini\\antigravity\\scratch\\maps-business-scraper\\node_modules\\@apify\\src\\index.ts:88:74": {
+      "missing error code": {
+        "Error": {
+          "requestHandler timed out after 60 seconds.": {
+            "count": 1
+          }
+        }
+      }
+    }
+  },
+  "retryErrors": {
+    "C:\\Users\\Victor Samir\\.gemini\\antigravity\\scratch\\maps-business-scraper\\node_modules\\@apify\\src\\index.ts:88:74": {
+      "missing error code": {
+        "Error": {
+          "requestHandler timed out after 60 seconds.": {
+            "count": 3
+          }
+        }
+      }
+    }
+  }
+}

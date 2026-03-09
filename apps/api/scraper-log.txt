@@ -1,0 +1,39 @@
+﻿node.exe : Error: 
+listen EADDRINUSE: 
+address already in use 
+0.0.0.0:3001
+No linha:1 caractere:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Users\Victor 
+Samir\AppData\R ...
++ ~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~
+~~
+    + CategoryInfo     
+         : NotSpecifi  
+  ed: (Error: listen   
+  E...se 0.0.0.0:30    
+01:String) [], Rem    
+oteException
+    + FullyQualifiedEr 
+   rorId : NativeComm  
+  andError
+ 
+    at Server.setupList
+enHandle [as _listen2] 
+(node:net:1940:16)
+    at listenInCluster 
+(node:net:1997:12)
+    at node:net:2206:7
+    at process.processT
+icksAndRejections (node
+:internal/process/task_
+queues:89:21) {
+  code: 'EADDRINUSE',
+  errno: -4091,
+  syscall: 'listen',
+  address: '0.0.0.0',
+  port: 3001
+}

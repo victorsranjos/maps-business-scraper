@@ -1,0 +1,41 @@
+﻿node.exe : C:\Users\Victor Sam
+ir\.gemini\antigravity\scratch
+\maps-business-scraper\apps\ap
+i\src\db\index.ts:6
+No linha:1 caractere:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Users\Victor 
+Samir\AppData\R ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~
+    + CategoryInfo          : 
+    NotSpecified: (C:\Users\  
+  Victor...c\db\index.ts:6:   
+ String) [], RemoteExcepti    
+on
+    + FullyQualifiedErrorId : 
+    NativeCommandError
+ 
+import { api } from "../../../
+../convex/_generated/api.js";
+         ^
+SyntaxError: The requested 
+module '../../../../convex/_ge
+nerated/api.js' does not 
+provide an export named 'api'
+    at #asyncInstantiate (node
+:internal/modules/esm/module_j
+ob:302:21)
+    at async ModuleJob.run (no
+de:internal/modules/esm/module
+_job:405:5)
+    at async onImport.tracePro
+mise.__proto__ (node:internal/
+modules/esm/loader:660:26)
+    at async asyncRunEntryPoin
+tWithESMLoader (node:internal/
+modules/run_main:101:5)
+
+Node.js v24.12.0
