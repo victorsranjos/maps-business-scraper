@@ -1,10 +1,22 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
+import { paginationOptsValidator } from "convex/server";
 
-// Query genérica para a aba "Meus Leads Salvos" trazer toda a base CRM
+// Query genérica para a aba "Meus Leads Salvos" — suporta paginação via cursor
 export const getAllLeads = query({
     handler: async (ctx) => {
         return await ctx.db.query("leads").order("desc").take(1000);
+    },
+});
+
+// Paginated version for "Meus Leads" tab
+export const getLeadsPaginated = query({
+    args: { paginationOpts: paginationOptsValidator },
+    handler: async (ctx, args) => {
+        return await ctx.db
+            .query("leads")
+            .order("desc")
+            .paginate(args.paginationOpts);
     },
 });
 
@@ -29,7 +41,7 @@ export const getLeads = query({
     },
 });
 
-// Mutation p/ o Node.js Backend (Playwright Crawler) inserir um lead achado
+// Mutation p/ o Node.js Backend inserir um lead achado — com proteção contra duplicatas
 export const saveLead = mutation({
     args: {
         name: v.string(),
@@ -44,6 +56,19 @@ export const saveLead = mutation({
         searchSessionId: v.optional(v.string()),
     },
     handler: async (ctx, args) => {
+        // Duplicate check: same name + city + niche
+        const existing = await ctx.db
+            .query("leads")
+            .withIndex("by_name_city_niche", (q) =>
+                q.eq("name", args.name).eq("city", args.city).eq("niche", args.niche)
+            )
+            .first();
+
+        if (existing) {
+            // Already exists — skip silently and return the existing id
+            return existing._id;
+        }
+
         const leadId = await ctx.db.insert("leads", {
             ...args,
             status: "NOVO", // Inicia sempre como lead novo
@@ -74,3 +99,4 @@ export const updateLeadStatus = mutation({
         await ctx.db.patch(args.leadId, { status: args.status });
     },
 });
+

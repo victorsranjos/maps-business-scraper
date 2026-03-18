@@ -32,5 +32,7 @@ export default defineSchema({
     })
         // Adiciona índices para busca rápida por sessão, cidade ou nicho
         .index("by_session", ["searchSessionId"])
-        .index("by_city_niche", ["city", "niche"]),
+        .index("by_city_niche", ["city", "niche"])
+        .index("by_name_city_niche", ["name", "city", "niche"]),
 });
+

@@ -5,117 +5,140 @@ import axios from 'axios';
 log.setLevel(log.LEVELS.INFO);
 
 /**
- * Inicia a busca usando a API oficial do Google Places (New)
+ * Gera variações de query para tentar superar o limite de ~60 resultados por busca da Places API.
+ * Ex: "Advogado em São Paulo", "Escritório de Advogado em São Paulo", "Advogado empresarial em São Paulo", etc.
+ */
+function buildQueryVariations(niche: string, city: string): string[] {
+    const base = `${niche} em ${city}`;
+    const synonymPrefixes = ['Escritório de', 'Empresa de', 'Serviços de', 'Studio de'];
+    const adjectives = [
+        'empresarial', 'trabalhista', 'civil', 'criminal', 'tributário',
+        'familiar', 'imobiliário', 'digital', 'internacional', 'consultivo',
+    ];
+
+    const queries: string[] = [base];
+
+    // "Escritório de Advogado em SP"
+    for (const prefix of synonymPrefixes) {
+        queries.push(`${prefix} ${niche} em ${city}`);
+    }
+
+    // "Advogado empresarial em SP"
+    for (const adj of adjectives) {
+        queries.push(`${niche} ${adj} em ${city}`);
+    }
+
+    return queries;
+}
+
+/**
+ * Busca uma única query na Places API e retorna os resultados de TODAS as páginas disponíveis.
+ */
+async function fetchAllPagesForQuery(
+    query: string,
+    apiKey: string,
+    maxToFetch: number
+): Promise<{ name: string; phone: string; website: string }[]> {
+    const searchUrl = `https://places.googleapis.com/v1/places:searchText`;
+    const results: { name: string; phone: string; website: string }[] = [];
+    let pageToken: string | undefined = undefined;
+
+    while (results.length < maxToFetch) {
+        const requestBody: any = { textQuery: query };
+        if (pageToken) requestBody.pageToken = pageToken;
+
+        const response = await axios.post(searchUrl, requestBody, {
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Goog-Api-Key': apiKey,
+                'X-Goog-FieldMask': 'places.displayName,places.nationalPhoneNumber,places.websiteUri,nextPageToken',
+            },
+        });
+
+        const places = response.data.places || [];
+        for (const place of places) {
+            if (results.length >= maxToFetch) break;
+            results.push({
+                name: place.displayName?.text || query,
+                phone: place.nationalPhoneNumber || '',
+                website: place.websiteUri || '',
+            });
+        }
+
+        pageToken = response.data.nextPageToken;
+        if (!pageToken || places.length === 0) break;
+
+        // Google requires a short pause before the nextPageToken becomes valid
+        await new Promise(r => setTimeout(r, 2000));
+    }
+
+    return results;
+}
+
+/**
+ * Inicia a busca usando a API oficial do Google Places (New).
+ * Usa múltiplas variações de query para superar os ~60 resultados por busca.
  */
 export async function startCrawler(city: string, niche: string, limit: number = 20, apiKeyOverride?: string) {
     log.info(`Iniciando Google Places API (New) para ${niche} em ${city} (Limite max: ${limit})...`);
-    const query = `${niche} em ${city}`;
 
-    // Priority for the user-provided API key from the frontend
     const apiKey = apiKeyOverride || process.env.GOOGLE_MAPS_API_KEY;
-
     if (!apiKey) {
-        log.error("GOOGLE_MAPS_API_KEY não foi provida (nem pelo config, nem pelo ambiente)! A busca usando API foi cancelada.");
+        log.error('GOOGLE_MAPS_API_KEY não foi provida! A busca foi cancelada.');
         return;
     }
 
-    let pageToken: string | undefined = undefined;
-    let pageCount = 0;
+    const queries = buildQueryVariations(niche, city);
+    log.info(`Estratégia: ${queries.length} variações de query para atingir ${limit} leads.`);
+
+    const seenNames = new Set<string>();
     let totalSaved = 0;
-    const maxPages = 10; // Para evitar loops infinitos acidentais ou alto custo
-    const searchUrl = `https://places.googleapis.com/v1/places:searchText`;
 
-    try {
-        log.info('Chamando Google Places API (New) text search...');
+    for (const query of queries) {
+        if (totalSaved >= limit) break;
 
-        while (pageCount < maxPages && totalSaved < limit) {
-            pageCount++;
-            log.info(`Buscando Página ${pageCount}...`);
+        log.info(`Rodando query: "${query}"...`);
 
-            const requestBody: any = {
-                textQuery: query
-            };
+        try {
+            const remaining = limit - totalSaved;
+            const batch = await fetchAllPagesForQuery(query, apiKey, remaining);
 
-            if (pageToken) {
-                requestBody.pageToken = pageToken;
-            }
+            log.info(`Query retornou ${batch.length} resultados brutos.`);
 
-            const searchResponse = await axios.post(searchUrl, requestBody, {
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Goog-Api-Key': apiKey,
-                    // O FieldMask determina o que você quer de volta, economizando a busca adicional de "details"
-                    'X-Goog-FieldMask': 'places.displayName,places.nationalPhoneNumber,places.websiteUri,nextPageToken'
+            for (const { name, phone, website } of batch) {
+                if (totalSaved >= limit) break;
+
+                // Deduplication: normalise name (lower, trim) to avoid saving the same place twice
+                const nameKey = name.toLowerCase().trim();
+                if (seenNames.has(nameKey)) {
+                    log.info(`Duplicado ignorado: ${name}`);
+                    continue;
                 }
-            });
-
-            const places = searchResponse.data.places || [];
-            log.info(`Achados ${places.length} negócios na Página ${pageCount}.`);
-
-            for (let i = 0; i < places.length; i++) {
-                if (totalSaved >= limit) {
-                    log.info(`Limite definido pelo usuário de ${limit} leads foi alcançado.`);
-                    break;
-                }
-
-                const place = places[i];
-
-                const name = place.displayName?.text || query;
-                const phone = place.nationalPhoneNumber || '';
-                const website = place.websiteUri || '';
+                seenNames.add(nameKey);
 
                 log.info(`Lead extraído: ${name} | ${website} | ${phone}`);
 
-                let email = undefined;
-                let instagram = undefined;
-                let facebook = undefined;
-
                 try {
-                    // Salva no banco em "stream/tempo real"
                     await saveLead({
                         name,
                         niche,
                         city,
                         phone: phone || undefined,
                         website: website || undefined,
-                        email,
-                        instagram,
-                        facebook
                     });
                     totalSaved++;
                 } catch (err) {
-                    log.error(`Erro buscando detalhes para o local ${name}`, err as any);
+                    log.error(`Erro ao salvar ${name}`, err as any);
                 }
             }
-
-            if (totalSaved >= limit) {
-                break;
-            }
-
-            // Atualiza o token para a próxima página
-            pageToken = searchResponse.data.nextPageToken;
-
-            if (!pageToken) {
-                log.info(`Não há mais páginas (nextPageToken vazio). Encerrando buscas.`);
-                break;
+        } catch (e: any) {
+            if (e.response?.data) {
+                log.error(`Erro na query "${query}":`, e.response.data);
             } else {
-                log.info(`Próxima página identificada. Aguardando 2s antes da próxima chamada...`);
-                // O Google Places API requer que esperemos um curto período (geralmente 2s) antes que o nextPageToken torne-se válido.
-                await new Promise(resolve => setTimeout(resolve, 2000));
+                log.error(`Erro na query "${query}":`, e);
             }
-        }
-
-        if (pageCount >= maxPages) {
-            log.warning(`Limite interno de segurança atingido (${maxPages} páginas). Buscas interrompidas.`);
-        }
-
-    } catch (e: any) {
-        if (e.response && e.response.data) {
-            log.error('Erro detalhado da Google Places API:', e.response.data);
-        } else {
-            log.error('Erro processando chamadas para a Google Places API:', e);
         }
     }
 
-    log.info(`Buscas finalizadas para: ${query} ! Total extraído: ${totalSaved}`);
+    log.info(`Buscas finalizadas! Total extraído: ${totalSaved} / ${limit}`);
 }
