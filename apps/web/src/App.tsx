@@ -4,11 +4,12 @@ import { api } from "../../../convex/_generated/api";
 import { SearchForm } from "./components/SearchForm";
 import { LeadList, Lead } from "./components/LeadList";
 import { SavedLeads } from "./components/SavedLeads";
+import { Pipeline } from "./components/Pipeline";
 import { Settings } from "./components/Settings";
-import { Search, ListChecks, Settings as SettingsIcon } from 'lucide-react';
+import { Search, ListChecks, Kanban, Settings as SettingsIcon } from 'lucide-react';
 
 function App() {
-    const [activeTab, setActiveTab] = useState<'search' | 'saved' | 'settings'>('search');
+    const [activeTab, setActiveTab] = useState<'search' | 'saved' | 'pipeline' | 'settings'>('search');
     const [searchParams, setSearchParams] = useState<{ city?: string; niche?: string }>({});
     const [isSearching, setIsSearching] = useState(false);
 
@@ -72,6 +73,15 @@ function App() {
                         <ListChecks className="w-5 h-5" /> Meus Leads
                     </button>
                     <button
+                        onClick={() => setActiveTab('pipeline')}
+                        className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold transition-all ${activeTab === 'pipeline'
+                            ? 'bg-violet-600 text-white shadow-md'
+                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 hover:border-violet-300'
+                            }`}
+                    >
+                        <Kanban className="w-5 h-5" /> Pipeline
+                    </button>
+                    <button
                         onClick={() => setActiveTab('settings')}
                         className={`flex items-center gap-2 px-6 py-2.5 rounded-full font-semibold transition-all ${activeTab === 'settings'
                             ? 'bg-slate-700 text-white shadow-md'
@@ -83,7 +93,7 @@ function App() {
                 </div>
             </header>
 
-            <main className="px-4">
+            <main className={activeTab === 'pipeline' ? 'pt-4' : 'px-4'}>
                 {activeTab === 'search' ? (
                     <div className="animate-in fade-in zoom-in-95 duration-300">
                         <SearchForm onSubmit={handleSearch} />
@@ -100,8 +110,12 @@ function App() {
                     <div className="animate-in fade-in zoom-in-95 duration-300">
                         <SavedLeads initialSearch={searchParams.city || ''} />
                     </div>
-                ) : (
+                ) : activeTab === 'pipeline' ? (
                     <div className="animate-in fade-in zoom-in-95 duration-300">
+                        <Pipeline />
+                    </div>
+                ) : (
+                    <div className="animate-in fade-in zoom-in-95 duration-300 px-4">
                         <Settings />
                     </div>
                 )}

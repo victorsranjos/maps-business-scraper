@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from "convex/react";
+import { useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LeadList, Lead } from "./LeadList";
 import { Search, Filter, MapPin, Briefcase, Download, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -26,52 +26,73 @@ interface SavedLeadsProps {
 }
 
 export function SavedLeads({ initialSearch = '' }: SavedLeadsProps) {
-    const allLeads = useQuery(api.business.getAllLeads);
     const [searchTerm, setSearchTerm] = useState(initialSearch);
     const [statusFilter, setStatusFilter] = useState<string>('all');
     const [cityFilter, setCityFilter] = useState<string>('all');
     const [nicheFilter, setNicheFilter] = useState<string>('all');
     const [currentPage, setCurrentPage] = useState(1);
 
-    const resetPage = () => setCurrentPage(1);
+    // Busca cidades e nichos únicos para os dropdowns (query separada e leve)
+    const meta = useQuery(api.business.getLeadsMeta);
 
-    // Extract unique cities and niches
-    const uniqueCities = useMemo(() => {
-        if (!allLeads) return [];
-        return Array.from(new Set(allLeads.map(l => l.city))).sort();
-    }, [allLeads]);
+    // Query paginada server-side — filtra por cidade e nicho via índice no Convex
+    const { results, status, loadMore } = usePaginatedQuery(
+        api.business.getLeadsFiltered,
+        {
+            city: cityFilter !== 'all' ? cityFilter : undefined,
+            niche: nicheFilter !== 'all' ? nicheFilter : undefined,
+        },
+        { initialNumItems: 200 }
+    );
 
-    const uniqueNiches = useMemo(() => {
-        if (!allLeads) return [];
-        return Array.from(new Set(allLeads.map(l => l.niche))).sort();
-    }, [allLeads]);
+    const isLoading = status === 'LoadingFirstPage';
 
-    // Filter logic
+    // Filtros client-side residuais: status e busca por nome (não têm índice)
     const filteredLeads = useMemo(() => {
-        if (!allLeads) return [];
-
-        return allLeads.filter((lead: Lead) => {
+        return results.filter((lead: Lead) => {
             const searchLower = searchTerm.toLowerCase();
-            const matchesText = lead.name.toLowerCase().includes(searchLower);
-            const matchesStatus = statusFilter === 'all' || lead.status === statusFilter || (!lead.status && statusFilter === 'NOVO');
-            const matchesCity = cityFilter === 'all' || lead.city === cityFilter;
-            const matchesNiche = nicheFilter === 'all' || lead.niche === nicheFilter;
-            return matchesText && matchesStatus && matchesCity && matchesNiche;
+            const matchesText = !searchTerm || lead.name.toLowerCase().includes(searchLower);
+            const matchesStatus =
+                statusFilter === 'all' ||
+                lead.status === statusFilter ||
+                (!lead.status && statusFilter === 'NOVO');
+            return matchesText && matchesStatus;
         });
-    }, [allLeads, searchTerm, statusFilter, cityFilter, nicheFilter]);
+    }, [results, searchTerm, statusFilter]);
 
-    // Pagination
+    // Paginação client-side sobre os resultados já filtrados
     const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
     const safePage = Math.min(currentPage, totalPages);
     const pagedLeads = filteredLeads.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
 
-    const handleFilterChange = (setter: (v: string) => void) => (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
-        setter(e.target.value);
-        resetPage();
-    };
+    const resetPage = () => setCurrentPage(1);
+
+    const handleFilterChange =
+        (setter: (v: string) => void) =>
+        (e: React.ChangeEvent<HTMLSelectElement | HTMLInputElement>) => {
+            setter(e.target.value);
+            resetPage();
+        };
+
+    // Carrega mais leads do servidor se existir próxima página e o usuário alcançar o final
+    const hasMore = status === 'CanLoadMore';
 
     return (
         <div className="max-w-4xl mx-auto mt-8">
+            {/* Total geral na base */}
+            <div className="mb-4 flex items-center gap-3">
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-semibold">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {meta === undefined ? (
+                        <span className="animate-pulse">Contando leads…</span>
+                    ) : (
+                        <span>{meta.total.toLocaleString('pt-BR')} leads na base de dados</span>
+                    )}
+                </div>
+            </div>
+
             {/* Filter Bar */}
             <div className="bg-white p-4 rounded-xl shadow-sm border border-gray-200 mb-6 flex flex-col gap-4">
                 <div className="relative w-full">
@@ -98,7 +119,7 @@ export function SavedLeads({ initialSearch = '' }: SavedLeadsProps) {
                             className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm appearance-none bg-white"
                         >
                             <option value="all">Todas as Cidades</option>
-                            {uniqueCities.map(city => (
+                            {meta?.cities.map(city => (
                                 <option key={city} value={city}>{city}</option>
                             ))}
                         </select>
@@ -114,7 +135,7 @@ export function SavedLeads({ initialSearch = '' }: SavedLeadsProps) {
                             className="block w-full pl-10 pr-10 py-2 border border-gray-300 rounded-lg focus:ring-blue-500 focus:border-blue-500 sm:text-sm appearance-none bg-white"
                         >
                             <option value="all">Todos os Nichos</option>
-                            {uniqueNiches.map(niche => (
+                            {meta?.niches.map(niche => (
                                 <option key={niche} value={niche}>{niche}</option>
                             ))}
                         </select>
@@ -138,23 +159,41 @@ export function SavedLeads({ initialSearch = '' }: SavedLeadsProps) {
             </div>
 
             {/* Results Summary + Export */}
-            {allLeads && (
+            {!isLoading && (
                 <div className="mb-4 flex items-center justify-between px-1">
                     <span className="text-sm text-gray-500 font-medium">
-                        {filteredLeads.length} leads encontrados — página {safePage} de {totalPages}
+                        {filteredLeads.length} leads{hasMore ? '+' : ''} encontrados — página {safePage} de {totalPages}
                     </span>
                     <button
-                        onClick={() => exportLeadsToCsv(filteredLeads as Lead[], `leads-${nicheFilter !== 'all' ? nicheFilter + '-' : ''}${cityFilter !== 'all' ? cityFilter + '-' : ''}${new Date().toISOString().slice(0, 10)}.csv`)}
+                        onClick={() =>
+                            exportLeadsToCsv(
+                                filteredLeads as Lead[],
+                                `leads-${nicheFilter !== 'all' ? nicheFilter + '-' : ''}${cityFilter !== 'all' ? cityFilter + '-' : ''}${new Date().toISOString().slice(0, 10)}.csv`
+                            )
+                        }
                         disabled={filteredLeads.length === 0}
                         className="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed rounded-lg transition-colors"
                     >
                         <Download className="w-4 h-4" />
-                        Exportar CSV ({filteredLeads.length})
+                        Exportar CSV ({filteredLeads.length}{hasMore ? '+' : ''})
                     </button>
                 </div>
             )}
 
-            <LeadList leads={pagedLeads as Lead[]} loading={allLeads === undefined} />
+            <LeadList leads={pagedLeads as Lead[]} loading={isLoading} />
+
+            {/* Carrega mais resultados do servidor se disponível */}
+            {hasMore && safePage === totalPages && (
+                <div className="mt-4 flex justify-center">
+                    <button
+                        onClick={() => loadMore(200)}
+                        disabled={status !== 'CanLoadMore'}
+                        className="px-6 py-2 text-sm font-semibold border border-blue-300 text-blue-600 rounded-lg bg-white hover:bg-blue-50 disabled:opacity-40 transition-colors"
+                    >
+                        Carregar mais leads
+                    </button>
+                </div>
+            )}
 
             {/* Pagination Controls */}
             {totalPages > 1 && (
@@ -204,4 +243,3 @@ export function SavedLeads({ initialSearch = '' }: SavedLeadsProps) {
         </div>
     );
 }
-

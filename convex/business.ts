@@ -2,21 +2,82 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 
-// Query genérica para a aba "Meus Leads Salvos" — suporta paginação via cursor
-export const getAllLeads = query({
-    handler: async (ctx) => {
-        return await ctx.db.query("leads").order("desc").take(1000);
+// Query paginada + filtrada para a aba "Meus Leads Salvos"
+// Filtros server-side via índice: cidade e nicho. Status e busca por nome são filtrados client-side após paginar.
+export const getLeadsFiltered = query({
+    args: {
+        paginationOpts: paginationOptsValidator,
+        city: v.optional(v.string()),
+        niche: v.optional(v.string()),
     },
-});
-
-// Paginated version for "Meus Leads" tab
-export const getLeadsPaginated = query({
-    args: { paginationOpts: paginationOptsValidator },
     handler: async (ctx, args) => {
+        const { city, niche } = args;
+
+        // Usa índice composto quando ambos os filtros estão presentes
+        if (city && niche) {
+            return await ctx.db
+                .query("leads")
+                .withIndex("by_city_niche", (q) => q.eq("city", city).eq("niche", niche))
+                .order("desc")
+                .paginate(args.paginationOpts);
+        }
+
+        // Apenas cidade
+        if (city) {
+            return await ctx.db
+                .query("leads")
+                .withIndex("by_city_niche", (q) => q.eq("city", city))
+                .order("desc")
+                .paginate(args.paginationOpts);
+        }
+
+        // Sem filtros por índice: retorna todos paginados
         return await ctx.db
             .query("leads")
             .order("desc")
             .paginate(args.paginationOpts);
+    },
+});
+
+// Query para buscar cidades, nichos únicos e total de leads (para popular os dropdowns e o contador)
+export const getLeadsMeta = query({
+    handler: async (ctx) => {
+        // Executa duas queries em paralelo para mínima latência
+        const [allLeads, sampleLeads] = await Promise.all([
+            // Conta todos os leads (sem limite) para o total real
+            ctx.db.query("leads").collect(),
+            // Amostra para extrair cidades/nichos únicos (4000 suficiente para dropdowns)
+            ctx.db.query("leads").order("desc").take(4000),
+        ]);
+        const total = allLeads.length;
+        const cities = Array.from(new Set(sampleLeads.map(l => l.city))).sort();
+        const niches = Array.from(new Set(sampleLeads.map(l => l.niche))).sort();
+        return { total, cities, niches };
+    },
+});
+
+// Query para o Pipeline Kanban — carrega leads de uma coluna (status) específico via índice
+export const getLeadsByStatus = query({
+    args: {
+        status: v.union(
+            v.literal("NOVO"),
+            v.literal("CONTATADO"),
+            v.literal("EM_NUTRICAO"),
+            v.literal("RESPOSTA_RECEBIDA"),
+            v.literal("REUNIAO_AGENDADA"),
+            v.literal("PROPOSTA_ENVIADA"),
+            v.literal("NEGOCIACAO"),
+            v.literal("CLIENTE_GANHO"),
+            v.literal("CLIENTE_PERDIDO"),
+            v.literal("DESCARTADO")
+        ),
+    },
+    handler: async (ctx, args) => {
+        return await ctx.db
+            .query("leads")
+            .withIndex("by_status", (q) => q.eq("status", args.status))
+            .order("desc")
+            .take(200);
     },
 });
 

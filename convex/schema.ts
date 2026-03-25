@@ -33,6 +33,34 @@ export default defineSchema({
         // Adiciona índices para busca rápida por sessão, cidade ou nicho
         .index("by_session", ["searchSessionId"])
         .index("by_city_niche", ["city", "niche"])
-        .index("by_name_city_niche", ["name", "city", "niche"]),
+        .index("by_name_city_niche", ["name", "city", "niche"])
+        .index("by_status", ["status"]),
+
+    touchpoints: defineTable({
+        leadId: v.id("leads"),          // Referência ao lead
+        channel: v.union(               // Canal de contato
+            v.literal("WHATSAPP"),
+            v.literal("EMAIL"),
+            v.literal("INSTAGRAM"),
+            v.literal("TELEFONE"),
+            v.literal("LINKEDIN"),
+            v.literal("OUTRO"),
+        ),
+        direction: v.union(             // Sentido da comunicação
+            v.literal("OUTBOUND"),      // Você enviou
+            v.literal("INBOUND"),       // Lead respondeu
+        ),
+        status: v.union(
+            v.literal("ENVIADO"),
+            v.literal("RESPONDIDO"),
+            v.literal("SEM_RESPOSTA"),
+        ),
+        message: v.optional(v.string()),  // Texto exato enviado/recebido
+        notes: v.optional(v.string()),    // Anotações livres
+        contactedAt: v.number(),          // Quando aconteceu
+        createdAt: v.number(),
+    })
+        .index("by_lead", ["leadId"])
+        .index("by_lead_contacted", ["leadId", "contactedAt"]),
 });
 
