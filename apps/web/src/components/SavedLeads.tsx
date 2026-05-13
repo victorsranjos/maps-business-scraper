@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react';
 import { useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "../../../../convex/_generated/api";
 import { LeadList, Lead } from "./LeadList";
-import { Search, Filter, MapPin, Briefcase, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Search, Filter, MapPin, Briefcase, Download, ChevronLeft, ChevronRight, AtSign, Loader2, CheckCircle2 } from 'lucide-react';
 import { exportLeadsToCsv } from '../lib/exportCsv';
 
 const PAGE_SIZE = 20;
@@ -31,6 +31,8 @@ export function SavedLeads({ initialSearch = '' }: SavedLeadsProps) {
     const [cityFilter, setCityFilter] = useState<string>('all');
     const [nicheFilter, setNicheFilter] = useState<string>('all');
     const [currentPage, setCurrentPage] = useState(1);
+    const [emailScraping, setEmailScraping] = useState(false);
+    const [emailScrapeMsg, setEmailScrapeMsg] = useState<string | null>(null);
 
     // Busca cidades e nichos únicos para os dropdowns (query separada e leve)
     const meta = useQuery(api.business.getLeadsMeta);
@@ -77,10 +79,32 @@ export function SavedLeads({ initialSearch = '' }: SavedLeadsProps) {
     // Carrega mais leads do servidor se existir próxima página e o usuário alcançar o final
     const hasMore = status === 'CanLoadMore';
 
+    const handleScrapeEmails = async () => {
+        setEmailScraping(true);
+        setEmailScrapeMsg(null);
+        try {
+            await fetch('http://localhost:3001/api/scrape-emails', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    city: cityFilter !== 'all' ? cityFilter : undefined,
+                    niche: nicheFilter !== 'all' ? nicheFilter : undefined,
+                    limit: 200,
+                }),
+            });
+            setEmailScrapeMsg('Extração iniciada! Os e-mails aparecerão nos leads em instantes.');
+        } catch {
+            setEmailScrapeMsg('Erro ao conectar com a API. Verifique se o backend está rodando.');
+        } finally {
+            setEmailScraping(false);
+            setTimeout(() => setEmailScrapeMsg(null), 6000);
+        }
+    };
+
     return (
         <div className="max-w-4xl mx-auto mt-8">
             {/* Total geral na base */}
-            <div className="mb-4 flex items-center gap-3">
+            <div className="mb-4 flex items-center gap-3 flex-wrap">
                 <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 text-blue-700 px-4 py-2 rounded-lg text-sm font-semibold">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
@@ -91,6 +115,26 @@ export function SavedLeads({ initialSearch = '' }: SavedLeadsProps) {
                         <span>{meta.total.toLocaleString('pt-BR')} leads na base de dados</span>
                     )}
                 </div>
+
+                {/* Manual email scrape button */}
+                <button
+                    onClick={handleScrapeEmails}
+                    disabled={emailScraping}
+                    className="flex items-center gap-2 px-4 py-2 text-sm font-semibold bg-violet-600 text-white rounded-lg hover:bg-violet-700 disabled:opacity-60 transition-all"
+                    title="Extrai e-mails dos sites dos leads visíveis"
+                >
+                    {emailScraping
+                        ? <Loader2 className="w-4 h-4 animate-spin" />
+                        : <AtSign className="w-4 h-4" />}
+                    {emailScraping ? 'Extraindo...' : 'Extrair E-mails'}
+                </button>
+
+                {emailScrapeMsg && (
+                    <div className="flex items-center gap-2 text-sm bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg">
+                        <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+                        {emailScrapeMsg}
+                    </div>
+                )}
             </div>
 
             {/* Filter Bar */}

@@ -161,3 +161,79 @@ export const updateLeadStatus = mutation({
     },
 });
 
+// ─── PROSPECTION MACHINE ADDITIONS ───────────────────────────────────────────
+
+// Query used by the email scraper worker: returns leads that have a website
+// but have not yet had an email scrape attempt (emailScraped !== true).
+// Accepts optional city/niche filters to scope to a specific search session.
+export const getLeadsWithWebsite = query({
+    args: {
+        city: v.optional(v.string()),
+        niche: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit ?? 200;
+
+        let leads;
+        if (args.city && args.niche) {
+            leads = await ctx.db
+                .query("leads")
+                .withIndex("by_city_niche", (q) =>
+                    q.eq("city", args.city!).eq("niche", args.niche!)
+                )
+                .order("desc")
+                .take(limit * 3); // Fetch more, we'll filter below
+        } else {
+            leads = await ctx.db.query("leads").order("desc").take(limit * 3);
+        }
+
+        return leads
+            .filter((l) => !!l.website && !l.emailScraped)
+            .slice(0, limit);
+    },
+});
+
+// Mutation called by the email scraper to persist the found email (or mark as attempted)
+export const updateLeadEmail = mutation({
+    args: {
+        leadId: v.id("leads"),
+        email: v.optional(v.string()),   // undefined = no email found, but mark as tried
+    },
+    handler: async (ctx, args) => {
+        await ctx.db.patch(args.leadId, {
+            emailScraped: true,
+            ...(args.email ? { email: args.email } : {}),
+        });
+    },
+});
+
+// Query for campaign targeting: returns leads that have an email and match filters
+export const getLeadsWithEmail = query({
+    args: {
+        city: v.optional(v.string()),
+        niche: v.optional(v.string()),
+        status: v.optional(v.string()),
+        limit: v.optional(v.number()),
+    },
+    handler: async (ctx, args) => {
+        const limit = args.limit ?? 500;
+
+        let leads;
+        if (args.city && args.niche) {
+            leads = await ctx.db
+                .query("leads")
+                .withIndex("by_city_niche", (q) =>
+                    q.eq("city", args.city!).eq("niche", args.niche!)
+                )
+                .order("desc")
+                .take(limit * 3);
+        } else {
+            leads = await ctx.db.query("leads").order("desc").take(limit * 3);
+        }
+
+        return leads
+            .filter((l) => !!l.email && (!args.status || l.status === args.status))
+            .slice(0, limit);
+    },
+});

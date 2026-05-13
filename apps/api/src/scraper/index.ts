@@ -1,6 +1,20 @@
 import { log } from 'crawlee';
 import { saveLead } from '../db/index.js';
+import { scrapeEmailsForLeads } from './emailScraper.js';
+import { ConvexHttpClient } from 'convex/browser';
+import { anyApi } from 'convex/server';
 import axios from 'axios';
+import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../../../.env.local') });
+
+const convexUrl = process.env.CONVEX_URL || 'http://127.0.0.1:3210';
+const _convex = new ConvexHttpClient(convexUrl);
+const _api = anyApi;
 
 log.setLevel(log.LEVELS.INFO);
 
@@ -141,4 +155,20 @@ export async function startCrawler(city: string, niche: string, limit: number = 
     }
 
     log.info(`Buscas finalizadas! Total extraído: ${totalSaved} / ${limit}`);
+
+    // ── Auto email scrape (if enabled in settings) ───────────────────────────
+    try {
+        const autoScrape = await _convex.query(_api.campaigns.getSetting, { key: 'autoScrapeEmails' });
+        if (autoScrape !== 'false') {
+            log.info('[AutoEmailScrape] Modo automático ativado — iniciando extração de emails...');
+            // Fire-and-forget: runs in background, doesn't block the scraper response
+            scrapeEmailsForLeads({ city, niche, limit: totalSaved }).catch((e) =>
+                log.error('[AutoEmailScrape] Erro na extração automática de emails:', e)
+            );
+        } else {
+            log.info('[AutoEmailScrape] Modo manual ativado — extração de emails não iniciada automaticamente.');
+        }
+    } catch (e) {
+        log.error('[AutoEmailScrape] Falha ao verificar configuração:', e);
+    }
 }
